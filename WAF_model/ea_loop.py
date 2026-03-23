@@ -220,10 +220,9 @@ class Archive:
         if len(self._blocked) > self.cap_blocked:
             self._blocked = self._blocked[-self.cap_blocked:]
 
-    def as_training_set(self) -> tuple[list[dict], list[str]]:
-        """Return all archive entries as (corpus, labels)."""
-        all_entries = self._bypass + self._blocked
-        return all_entries
+    def as_training_set(self) -> list[dict]:
+        """Return all archive entries as a single training corpus."""
+        return self._bypass + self._blocked
 
     @property
     def n_bypass(self)  -> int: return len(self._bypass)
@@ -396,22 +395,22 @@ class MLDrivenEA:
 
     def _generate_offspring(self) -> list[dict]:
         """
-        Produce λ offspring by calling the mutation engine (Component 7).
+        Produce λ offspring by calling the mutation engine.
+
+        Current integration supports variant E (adaptive) only.
         """
-        # Ensure entries have "prob" and "derivation" which mutation.py expects
-        # and "feature_row" if available.
-        # mutation.adaptive_offspring_gen(population, lambda_val, classifier, sigma)
-        
-        # We need to make sure 'prob' is set for all individuals
-        # (already done by _rank_population at line 471)
-        
-        offspring = mutation.adaptive_offspring_gen(
-            population       = self.population,
-            lambda_val       = self.cfg.lam,
-            classifier_model = self.classifier,
-            sigma            = self.cfg.sigma
+        if self.cfg.variant != "E":
+            raise NotImplementedError(
+                f"Variant {self.cfg.variant!r} is not wired to mutation.py yet. "
+                "Current integration supports only variant 'E'."
+            )
+
+        return mutation.adaptive_offspring_gen(
+            population=self.population,
+            lambda_val=self.cfg.lam,
+            classifier_model=self.classifier,
+            sigma=self.cfg.sigma,
         )
-        return offspring
 
     def _execute(self, attacks: list[dict]) -> list[dict]:
         """
@@ -521,10 +520,16 @@ class MLDrivenEA:
                 f"{self.archive.n_blocked} blocked total")
 
             # Step 4: retrain classifier (Algorithm 2 lines 14-15)
+            # Step 4: retrain classifier (Algorithm 2 lines 14-15)
             log(f"  Retraining classifier...")
             self._train_classifier()
 
-            # Assign probabilities to offspring for selection
+            # IMPORTANT:
+            # Re-rank the CURRENT population using the NEW classifier before selection,
+            # otherwise parents keep stale probabilities from the previous generation.
+            self._rank_population()
+
+            # Assign probabilities to offspring for selection using the NEW classifier
             for entry in offspring:
                 try:
                     slice_index = self.registry.slice_index
@@ -532,15 +537,18 @@ class MLDrivenEA:
                     slices      = extract_slices(tree_obj)
                     present     = {f"{s.root_rule}::{s.text}" for s in slices}
                     row = [1 if k in present else 0
-                           for k in sorted(slice_index, key=slice_index.get)]
-                    entry["prob"] = self.classifier.predict_proba(row) \
-                        if self.classifier else 0.0
+                        for k in sorted(slice_index, key=slice_index.get)]
+                    entry["feature_row"] = row
+                    entry["prob"] = self.classifier.predict_proba(row) if self.classifier else 0.0
                 except Exception:
+                    entry["feature_row"] = None
                     entry["prob"] = 0.0
 
             # Step 5: elitist selection (Algorithm 2 line 17)
             self.population = self._select(self.population, offspring)
-            self._rank_population()
+
+            # Optional but useful: sort selected population cleanly after selection
+            self.population.sort(key=lambda e: e.get("prob", 0.0), reverse=True)
 
             # ── generation stats ───────────────────────────────────────────
             elapsed = time.time() - gen_start
@@ -618,9 +626,10 @@ if __name__ == "__main__":
     if variant not in ("B", "D", "E"):
         print(f"Unknown variant {variant!r}, defaulting to E")
         variant = "E"
-    if clf_type not in ("tree", "forest"):
-        print(f"Unknown classifier {clf_type!r}, defaulting to tree")
-        clf_type = "tree"
+
+    if variant != "E":
+        print(f"Variant {variant!r} is not connected in this build, defaulting to 'E'")
+        variant = "E"   
 
     config = EAConfig(
         # Small values for quick demo — increase for real runs
