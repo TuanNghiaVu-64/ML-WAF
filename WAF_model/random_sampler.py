@@ -229,6 +229,24 @@ def generate_unique_attacks(n: int,
     return results
 
 
+def regenerate_subtree(rule_name: str) -> tuple[str, list]:
+    """
+    Generate a new random sub-derivation starting from a specific rule.
+    Used by the mutation engine to swap out parts of an attack.
+
+    Parameters
+    ----------
+    rule_name : str   grammar rule to start from
+
+    Returns
+    -------
+    (text, derivation)
+    """
+    derivation: list = []
+    text = _sample(rule_name, derivation)
+    return text, derivation
+
+
 # ---------------------------------------------------------------------------
 # DEMO
 # ---------------------------------------------------------------------------

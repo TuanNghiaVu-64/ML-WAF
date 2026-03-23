@@ -125,6 +125,7 @@ from slice_extractor     import (SliceRegistry, build_derivation_tree,
                                   extract_slices, Slice)
 from classifier          import RandomTree, RandomForest
 from waf_connector       import WafConnector, MockWafConnector, DvwaConfig
+import mutation
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -181,176 +182,6 @@ class EAConfig:
 # Mutation engine — offspring generation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _get_alternatives(slice_obj: Slice) -> list[Slice]:
-    """
-    Find all alternative slices for a given slice.
-
-    An alternative shares the same root_rule but produces a different
-    terminal string. We enumerate alternatives by looking up the grammar
-    rule and generating all possible single-terminal expansions.
-
-    For example, slice (root_rule="wsp", text=" ") has alternatives:
-        wsp → blank → "+"
-        wsp → blank → "%20"
-        wsp → blank → "%09"  ...etc
-        wsp → inlineCmt → "/**/"
-
-    Parameters
-    ----------
-    slice_obj : Slice   the slice to find alternatives for
-
-    Returns
-    -------
-    list[Slice]   all alternatives (excluding the original slice itself)
-    """
-    rule = slice_obj.root_rule
-    if rule not in GRAMMAR:
-        return []
-
-    alternatives = []
-    # Walk every alternative of the rule in the grammar
-    for alt in GRAMMAR[rule]:
-        # Only consider single-symbol alternatives for clean mutation
-        # (multi-symbol alternatives would change the attack structure too much)
-        if len(alt) == 1:
-            sym = alt[0]
-            if isinstance(sym, str):
-                if sym in GRAMMAR:
-                    # Non-terminal: expand it fully to get all its terminals
-                    for sub_alt in GRAMMAR[sym]:
-                        if len(sub_alt) == 1 and isinstance(sub_alt[0], str):
-                            terminal = sub_alt[0]
-                            if terminal not in GRAMMAR:
-                                candidate = Slice(root_rule=rule, text=terminal)
-                                if candidate != slice_obj:
-                                    alternatives.append(candidate)
-                else:
-                    # Already a terminal
-                    candidate = Slice(root_rule=rule, text=sym)
-                    if candidate != slice_obj:
-                        alternatives.append(candidate)
-    return alternatives
-
-
-def _satisfies_path_condition(
-    slice_obj:      Slice,
-    path_condition: list[tuple[str, int]],
-    present_keys:   set[str],
-) -> bool:
-    """
-    Check whether a slice is safe to mutate given the path condition.
-
-    Paper (Algorithm 3, line 9): "if satisfy(s, pathCondition)"
-
-    A slice is safe to mutate if it is NOT a required element of the
-    path condition. Specifically:
-      - If the slice key appears in the path condition with value=1
-        (must be PRESENT), we must NOT remove it → not safe to mutate
-      - If the slice key appears with value=0 (must be ABSENT), it
-        should not be present anyway → safe (mutation keeps it absent)
-      - If the slice key is not in the path condition → safe to mutate
-
-    Parameters
-    ----------
-    slice_obj      : Slice   the slice we are considering mutating
-    path_condition : list    [(slice_key, value), ...]
-    present_keys   : set     slice keys actually present in this attack
-
-    Returns
-    -------
-    bool  True if this slice can be mutated
-    """
-    key = f"{slice_obj.root_rule}::{slice_obj.text}"
-    pc_dict = dict(path_condition)
-
-    if key in pc_dict:
-        required_val = pc_dict[key]
-        if required_val == 1:
-            # This slice must be present — do not mutate it away
-            return False
-        # required_val == 0: slice must be absent — it shouldn't be here
-        # at all, but if it is, mutating it is fine
-    return True
-
-
-def _mutate_attack(
-    entry:          dict,
-    path_condition: list[tuple[str, int]],
-    maxm:           int,
-) -> list[dict]:
-    """
-    Generate mutant attacks from one parent by replacing slices.
-
-    Paper Algorithm 3 (lines 7-14):
-      for each slice s in the parent's slice vector:
-        if s satisfies the path condition:
-          replace s with up to MAXM alternative slices → new attacks
-
-    Parameters
-    ----------
-    entry          : dict    parent attack {"attack", "derivation", "label"}
-    path_condition : list    [(slice_key, value), ...]
-    maxm           : int     max alternatives to try per slice
-
-    Returns
-    -------
-    list[dict]   mutant attacks (no label yet — must be sent to WAF)
-    """
-    # Rebuild derivation tree and extract slices
-    tree   = build_derivation_tree(entry["derivation"])
-    slices = extract_slices(tree)
-
-    if not slices:
-        return []
-
-    # Build set of present slice keys for path condition check
-    present_keys = {f"{s.root_rule}::{s.text}" for s in slices}
-
-    mutants = []
-
-    for sl in slices:
-        # Check if this slice is safe to mutate
-        if not _satisfies_path_condition(sl, path_condition, present_keys):
-            continue
-
-        # Find alternative slices for this rule
-        alternatives = _get_alternatives(sl)
-        if not alternatives:
-            continue
-
-        # Cap at MAXM alternatives
-        if len(alternatives) > maxm:
-            alternatives = random.sample(alternatives, maxm)
-
-        # For each alternative, build a mutant attack string by
-        # replacing the original slice's text with the alternative's text
-        for alt_sl in alternatives:
-            original_text = sl.text
-            alt_text      = alt_sl.text
-
-            if original_text == alt_text:
-                continue
-
-            # Simple string substitution — replace first occurrence
-            # of the slice text in the attack string
-            attack_str = entry["attack"]
-            if original_text in attack_str:
-                mutant_str = attack_str.replace(original_text, alt_text, 1)
-                if mutant_str != attack_str:
-                    # Build a minimal derivation for the mutant
-                    # (we reuse parent derivation — slice extractor only
-                    #  needs the attack string for WAF submission;
-                    #  for full ML pipeline the derivation is needed,
-                    #  so we mark it as mutated for clarity)
-                    mutants.append({
-                        "attack":     mutant_str,
-                        "derivation": entry["derivation"],   # parent derivation
-                        "parent":     entry["attack"],
-                        "mutated_slice": f"{sl.root_rule}::{original_text}"
-                                         f" → {alt_text}",
-                    })
-
-    return mutants
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -533,9 +364,11 @@ class MLDrivenEA:
                 present  = {f"{s.root_rule}::{s.text}" for s in slices}
                 row = [1 if k in present else 0
                        for k in sorted(slice_index, key=slice_index.get)]
+                entry["feature_row"] = row
                 entry["prob"] = self.classifier.predict_proba(row)
             except Exception:
-                entry["prob"] = 0.0
+                entry["prob"]        = 0.0
+                entry["feature_row"] = None
 
         # Sort descending by bypass probability
         self.population.sort(key=lambda e: e["prob"], reverse=True)
@@ -561,114 +394,24 @@ class MLDrivenEA:
         except Exception:
             return []
 
-    def _generate_offspring_standard(self, maxm: int) -> list[dict]:
-        """
-        Algorithm 3: standard offspring generation (used by B and D variants).
-
-        Select tests from population in rank order.
-        For each selected test, generate mutants up to MAXM per slice.
-        Stop when λ offspring accumulated.
-
-        Parameters
-        ----------
-        maxm : int   MAXM value (10 for B, 100 for D)
-
-        Returns
-        -------
-        list[dict]   up to λ mutant attacks (unlabelled)
-        """
-        offspring  = []
-        used_parents = set()
-
-        # Cycle through population in rank order (highest prob first)
-        pop_iter = iter(self.population)
-
-        while len(offspring) < self.cfg.lam:
-            try:
-                parent = next(pop_iter)
-            except StopIteration:
-                break   # exhausted all parents
-
-            parent_id = parent["attack"]
-            if parent_id in used_parents:
-                continue
-            used_parents.add(parent_id)
-
-            pc      = self._get_path_condition(parent)
-            mutants = _mutate_attack(parent, pc, maxm)
-
-            # Cap how many mutants we take from this parent
-            remaining = self.cfg.lam - len(offspring)
-            offspring.extend(mutants[:remaining])
-
-        return offspring
-
-    def _generate_offspring_adaptive(self) -> list[dict]:
-        """
-        Algorithm 4: adaptive offspring generation (ML-Driven E).
-
-        Select ALL parents with bypass probability ≥ σ (default 80%).
-        Allocate mutation budget to each parent proportional to its
-        bypass probability (Equation 1 from paper):
-
-            mt = P(t) / Σ P(x) for x in T  ×  λ
-
-        Parameters
-        ----------
-        None — uses self.cfg.sigma and self.cfg.lam
-
-        Returns
-        -------
-        list[dict]   up to λ mutant attacks (unlabelled)
-        """
-        # Select parents above threshold σ
-        parents = [e for e in self.population
-                   if e.get("prob", 0.0) >= self.cfg.sigma]
-
-        if not parents:
-            # Fallback: take top-5 regardless of threshold
-            parents = self.population[:5]
-
-        if not parents:
-            return []
-
-        # Compute total probability mass for normalisation (Equation 1)
-        total_prob = sum(e["prob"] for e in parents)
-        if total_prob == 0:
-            total_prob = 1.0   # avoid division by zero
-
-        offspring = []
-
-        for parent in parents:
-            if len(offspring) >= self.cfg.lam:
-                break
-
-            # Budget for this parent (Equation 1)
-            mt = int((parent["prob"] / total_prob) * self.cfg.lam)
-            mt = max(mt, 1)   # always at least one attempt
-
-            pc      = self._get_path_condition(parent)
-            # MAXM = mt means we try up to mt alternatives per slice
-            # which naturally caps total mutants from this parent at mt
-            mutants = _mutate_attack(parent, pc, maxm=mt)
-
-            remaining = self.cfg.lam - len(offspring)
-            offspring.extend(mutants[:remaining])
-
-        return offspring
-
     def _generate_offspring(self) -> list[dict]:
         """
-        Dispatch to the correct offspring generator based on variant.
+        Produce λ offspring by calling the mutation engine (Component 7).
         """
-        if self.cfg.variant == "D":
-            return self._generate_offspring_standard(self.cfg.maxm_d)
-        elif self.cfg.variant == "B":
-            return self._generate_offspring_standard(self.cfg.maxm_b)
-        else:   # "E" — adaptive
-            return self._generate_offspring_adaptive()
-
-    # ── internal: WAF execution ───────────────────────────────────────────────
+        # Ensure entries have "prob" and "derivation" which mutation.py expects
+        # and "feature_row" if available.
+        # mutation.adaptive_offspring_gen(population, lambda_val, classifier, sigma)
+        
+        # We need to make sure 'prob' is set for all individuals
+        # (already done by _rank_population at line 471)
+        
+        offspring = mutation.adaptive_offspring_gen(
+            population       = self.population,
+            lambda_val       = self.cfg.lam,
+            classifier_model = self.classifier,
+            sigma            = self.cfg.sigma
+        )
+        return offspring
 
     def _execute(self, attacks: list[dict]) -> list[dict]:
         """
