@@ -59,7 +59,7 @@ class DvwaConfig:
     host:      str = "http://localhost:9003"
     path:      str = "/vulnerabilities/sqli/"
     param:     str = "id"
-    phpsessid: str = "f59690908df4860b89bddd3eaba6922c"  # ← paste yours here
+    phpsessid: str = "7782690643ce9018e8f5e0b45efe2dcb"  # ← paste yours here
     security:  str = "low"
     timeout:   float = 5.0
     delay:     float = 0.05   # 50 ms between requests

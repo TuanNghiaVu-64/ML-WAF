@@ -752,24 +752,75 @@ class RandomForest:
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    import sys
     from random_sampler import generate_unique_attacks
-    from slice_extractor import SliceRegistry, build_derivation_tree, extract_slices
-    from waf_connector import MockWafConnector
+    from slice_extractor import SliceRegistry
+    from waf_connector import WafConnector, MockWafConnector, DvwaConfig
+
+    # ── connector selection ───────────────────────────────────────────────
+    # Usage:
+    #   python classifier.py                          → real DVWA, default session
+    #   python classifier.py mock                     → offline mock WAF
+    #   python classifier.py <PHPSESSID>              → real DVWA, custom session
+    #
+    # Examples:
+    #   python classifier.py mock
+    #   python classifier.py abc123def456
+    USE_MOCK  = len(sys.argv) > 1 and sys.argv[1] == "mock"
+    SESSIONID = sys.argv[1] if (len(sys.argv) > 1 and not USE_MOCK)                 else "f59690908df4860b89bddd3eaba6922c"
 
     print("=" * 65)
     print("Component 3 — RandomTree & RandomForest Classifier Demo")
     print("=" * 65)
 
+    if USE_MOCK:
+        print("WAF mode : MockWafConnector (offline)")
+        waf = MockWafConnector()
+    else:
+        print(f"WAF mode : real DVWA at localhost:9003")
+        print(f"           PHPSESSID = {SESSIONID}")
+        waf = WafConnector(DvwaConfig(phpsessid=SESSIONID))
+
     # ── 1. Generate and label a training corpus ───────────────────────────
-    print("\n[1] Generating 60 attacks and labelling with mock WAF...")
-    waf    = MockWafConnector()
-    raw    = generate_unique_attacks(60)
-    corpus = [{"attack": a, "derivation": d} for a, d in raw]
-    corpus = waf.label_corpus(corpus)
+    # With a real WAF most attacks will be blocked — we keep generating
+    # until we have at least MIN_BYPASS bypass examples, which the
+    # classifier needs to learn from. Cap at MAX_ATTEMPTS to avoid
+    # running forever if the WAF blocks everything.
+    MIN_BYPASS   = 5      # minimum P labels needed to train meaningfully
+    BATCH_SIZE   = 30     # attacks per generation batch
+    MAX_ATTEMPTS = 300    # hard cap on total attacks sent
+
+    print(f"\n[1] Labelling attacks via WAF (need ≥{MIN_BYPASS} bypasses)...")
+    corpus: list[dict] = []
+    total_sent = 0
+
+    while total_sent < MAX_ATTEMPTS:
+        batch_raw = generate_unique_attacks(BATCH_SIZE)
+        batch     = [{"attack": a, "derivation": d} for a, d in batch_raw]
+        batch     = waf.label_corpus(batch)
+        corpus.extend(batch)
+        total_sent += BATCH_SIZE
+
+        n_bypass  = sum(1 for e in corpus if e["label"] == "P")
+        n_blocked = sum(1 for e in corpus if e["label"] == "B")
+        print(f"    sent {total_sent:>4} total — bypass (P): {n_bypass}  "
+              f"blocked (B): {n_blocked}")
+
+        if n_bypass >= MIN_BYPASS:
+            break
 
     n_bypass  = sum(1 for e in corpus if e["label"] == "P")
     n_blocked = sum(1 for e in corpus if e["label"] == "B")
-    print(f"    bypass (P): {n_bypass}   blocked (B): {n_blocked}")
+
+    if n_bypass == 0:
+        print("\n[WARN] No bypass attacks found. Check:")
+        print("  1. DVWA is running at localhost:9003")
+        print("  2. PHPSESSID is valid (copy fresh from browser)")
+        print("  3. Security level is set to 'low' in DVWA")
+        sys.exit(1)
+
+    print(f"\n    Final corpus: {len(corpus)} attacks — "
+          f"{n_bypass} bypass (P), {n_blocked} blocked (B)")
 
     # ── 2. Encode into binary matrix ─────────────────────────────────────
     print("\n[2] Encoding into binary feature matrix...")
