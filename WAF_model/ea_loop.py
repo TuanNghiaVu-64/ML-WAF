@@ -457,6 +457,7 @@ class MLDrivenEA:
         """
         cfg = self.cfg
         log = self._log
+        t0  = time.time()   # wall-clock reference for benchmark graphing
 
         log("=" * 65)
         log(f"ML-Driven EA  variant={cfg.variant}  "
@@ -489,6 +490,19 @@ class MLDrivenEA:
         log(f"[INIT] Population seeded: {len(self.population)} individuals")
         log(f"[INIT] Top-5 bypass probs: "
             f"{[round(e['prob'],3) for e in self.population[:5]]}")
+
+        # Record generation-0 stats (init phase) for benchmark graphing
+        self.history.append({
+            "generation":    0,
+            "n_bypass":      self.archive.n_bypass,
+            "n_blocked":     self.archive.n_blocked,
+            "new_bypass":    self.archive.n_bypass,
+            "new_blocked":   self.archive.n_blocked,
+            "top_prob":      self.population[0]["prob"] if self.population else 0.0,
+            "n_pcs":         0,
+            "elapsed_sec":   0.0,
+            "elapsed_total": time.time() - t0,
+        })
 
         # ── GENERATION LOOP ────────────────────────────────────────────────
         for gen in range(1, cfg.max_gen + 1):
@@ -571,6 +585,7 @@ class MLDrivenEA:
                 "top_prob":      top_prob,
                 "n_pcs":         n_pcs,
                 "elapsed_sec":   elapsed,
+                "elapsed_total": time.time() - t0,
             }
             self.history.append(gen_stats)
 
@@ -612,9 +627,7 @@ if __name__ == "__main__":
     # Usage:
     #   python ea_loop.py                    → real DVWA, variant E, tree
     #   python ea_loop.py mock               → mock WAF
-    #   python ea_loop.py mock B forest      → mock WAF, variant B, forest
     #   python ea_loop.py <sessid>           → real DVWA with session id
-    #   python ea_loop.py <sessid> E forest  → real DVWA, variant E, forest
 
     args     = sys.argv[1:]
     use_mock = len(args) > 0 and args[0] == "mock"
