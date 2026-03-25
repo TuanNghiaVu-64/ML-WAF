@@ -29,7 +29,7 @@ The testing process follows a structured loop to refine attack efficacy:
 
 ## Machine Learning Pipeline (`WAF_model/`)
 
-The architecture relies entirely on pure-Python implementations (no external ML libraries like `scikit-learn`) to closely mirror the academic paper.
+The architecture relies entirely on pure-Python implementations (no external ML libraries like `scikit-learn`).
 
 - **`ea_loop.py` (The Evolutionary Algorithm)**: The main `(µ+λ)` EA loop. It manages population ranking, elitist selection, archive updates, and classifier retraining across generations. It implements Variants B (Broad), D (Deep), and E (Enhanced adaptive).
 - **`classifier.py` (Decision Trees)**: Implements **RandomTree** and **RandomForest** from scratch. It trains on binary feature matrices to output two things: the *bypass probability* (fitness score) and the *Path Conditions* (the specific lexical rules the AI deemed critical for evasion).
