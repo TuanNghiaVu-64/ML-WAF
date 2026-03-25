@@ -23,7 +23,7 @@ flowchart TD
     B --> C["waf_connector.py<br/>Send payloads to DVWA → P/B labels"]
     C --> D["slice_extractor.py<br/>Derivation trees → binary features"]
     D --> E["classifier.py<br/>RandomTree / RandomForest"]
-    E --> F["ea_loop.py<br/>Main EA loop (Algorithms 2-4)"]
+    E --> F["ea_loop.py<br/>Main EA loop"]
     F -->|"mutation"| G["mutation.py<br/>Adaptive offspring generation"]
     G -->|"offspring"| C
     F -->|"retrain"| E
