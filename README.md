@@ -1,6 +1,31 @@
 # ML-WAF: Evolutionary Algorithm for WAF Bypass
 
-An ML-driven approach to testing Web Application Firewalls against SQL injection attacks. Based on the academic paper *"ML-Driven: An effective evolutionary algorithm to test Web Application Firewalls"*, this project uses a `(µ+λ)` evolutionary algorithm, a context-free grammar, and custom-built decision trees to automatically discover evasive attack payloads.
+**ML-Driven** is a specialized security testing approach that identifies vulnerabilities in WAFs without requiring access to source code or pre-defined security models. By treating the Web App Firewall as a black box, the system probes for "holes" by generating syntactically correct SQLi payloads and observing the firewall's response.
+
+The core strength of this project lies in its iterative learning: once initial bypassing payloads are discovered, they are analyzed, evolved, and retested over multiple generations. This allows the system to move beyond simple "lucky" bypasses and instead systematically understand and exploit underlying WAF filtering patterns.
+
+## Core Components
+
+* **Context-Free Grammar (CFG):** Generates syntactically valid SQLi attacks across three primary injection contexts: **Numeric**, **Single-quote**, and **Double-quote**. It supports diverse attack categories including Boolean-based, Union-based, and Piggy-backed queries.
+* **Evolutionary Engine:** Utilizes a `(µ+λ)` evolutionary algorithm to manage a population of attack payloads. The engine selects successful "slices" (effective substrings) of attacks and applies mutations to produce more sophisticated offspring in subsequent generations.
+* **ML-Guided Selection:** Employs decision trees (such as `RandomTree` or `RandomForest`) to act as a surrogate model. It learns which specific attack patterns are likely to bypass the WAF, ranking new candidate attacks based on their predicted bypassing probability to focus the search.
+
+## Methodology
+
+The testing process follows a structured loop to refine attack efficacy:
+
+1.  **Initial Sampling:** The CFG generates a diverse set of initial attack vectors to probe the WAF's baseline defenses.
+2.  **Learning Phase:** The ML model is trained on the results (Blocked vs. Bypassed). This identifies the specific substrings or patterns that are most effective at evading detection.
+3.  **Evolutionary Loop:**
+    * **Selection:** High-performing attacks are prioritized based on ML predictions.
+    * **Mutation:** The evolutionary engine modifies these attacks to create new, potentially more elusive variants.
+    * **Execution & Feedback:** New attacks are submitted to the WAF. The results are fed back into the training set, continuously refining the model’s accuracy and the population's strength over several generations.
+
+## Key Features
+
+* **Automated Payload Generation:** No manual crafting of SQLi strings required.
+* **Pattern Extraction:** Helps security administrators understand WAF weaknesses by highlighting common attributes of successful bypasses.
+* **Adaptive Learning:** The system becomes more efficient as it gathers more data from the target WAF.
 
 ## Machine Learning Pipeline (`WAF_model/`)
 
