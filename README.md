@@ -55,6 +55,8 @@ flowchart TD
     F -->|"output"| H["Bypass attacks + Path conditions"]
 ```
 
+## More detailed explanation is in every files of the model
+
 ## Dependencies
 
 ### Machine Learning Core (`WAF_model/`)
