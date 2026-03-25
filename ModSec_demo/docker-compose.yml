@@ -1,0 +1,71 @@
+services:
+  db:
+    image: mariadb:10.5
+    container_name: dvwa-db
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: dvwa
+      MYSQL_USER: dvwa
+      MYSQL_PASSWORD: dvwa
+    restart: unless-stopped
+
+  # Actual backend that both ModSec containers talk to
+  dvwa_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dvwa
+    container_name: dvwa-backend
+    volumes:
+      - ./dvwa:/var/www/html
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  # RAW DVWA (no WAF, direct)
+  dvwa_raw:
+    build:
+      context: .
+      dockerfile: Dockerfile.dvwa
+    container_name: dvwa-raw
+    ports:
+      - "9001:80"
+    volumes:
+      - ./dvwa:/var/www/html
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  # ModSecurity NO CRS
+  dvwa_modsec:
+    image: owasp/modsecurity-crs:apache
+    container_name: dvwa-modsec
+    environment:
+      - MODSECURITY=On
+      - OWASP_CRS=Off
+      - MODSEC_RULE_ENGINE=On
+      - MANUAL_MODE=1
+      - BACKEND=http://dvwa-backend:80
+      - BACKEND_WS=ws://dvwa-backend:80
+    volumes:
+      - ./modsecurity/setup-no-crs.conf:/etc/modsecurity.d/setup.conf:ro
+    ports:
+      - "9002:8080"
+    depends_on:
+      - dvwa_backend
+    restart: unless-stopped
+
+  # ModSecurity + CRS
+  dvwa_modsec_crs:
+    image: owasp/modsecurity-crs:apache
+    container_name: dvwa-modsec-crs
+    environment:
+      - MODSECURITY=On
+      - OWASP_CRS=On
+      - MODSEC_RULE_ENGINE=On
+      - BACKEND=http://dvwa-backend:80
+      - BACKEND_WS=ws://dvwa-backend:80
+    ports:
+      - "9003:8080"
+    depends_on:
+      - dvwa_backend
+    restart: unless-stopped
