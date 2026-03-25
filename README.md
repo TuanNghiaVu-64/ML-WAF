@@ -77,7 +77,7 @@ The target WAF is a Dockerized instance of DVWA behind ModSecurity running the O
 
 ```bash
 cd ModSec_demo
-docker compose up -build
+docker compose up --build
 ```
 The heavily protected target (ModSecurity + CRS) runs on `http://localhost:9003`.
 
