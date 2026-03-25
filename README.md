@@ -15,6 +15,21 @@ The architecture relies entirely on pure-Python implementations (no external ML 
 - **`waf_connector.py` (Fitness Evaluator)**: The oracle. Replays payloads against the target WAF to return ground-truth labels: `P` (Bypass/200 OK) or `B` (Blocked/403). Includes a `MockWafConnector` for local offline testing.
 - **`benchmark.py`**: Evaluates the ML-Driven approach against the RAN baseline over a specific time budget, plotting the cumulative bypass success rate.
 
+## Architecture Overview
+
+```mermaid
+flowchart TD
+    A["grammar_definition.py<br/>Context-free grammar for SQLi"] --> B["random_sampler.py<br/>Random attack generation (RAN)"]
+    B --> C["waf_connector.py<br/>Send payloads to DVWA → P/B labels"]
+    C --> D["slice_extractor.py<br/>Derivation trees → binary features"]
+    D --> E["classifier.py<br/>RandomTree / RandomForest"]
+    E --> F["ea_loop.py<br/>Main EA loop (Algorithms 2-4)"]
+    F -->|"mutation"| G["mutation.py<br/>Adaptive offspring generation"]
+    G -->|"offspring"| C
+    F -->|"retrain"| E
+    F -->|"output"| H["Bypass attacks + Path conditions"]
+```
+
 ## Dependencies
 
 ### Machine Learning Core (`WAF_model/`)
