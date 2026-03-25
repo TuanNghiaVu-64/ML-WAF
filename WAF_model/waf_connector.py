@@ -96,25 +96,6 @@ class WafConnector:
     def _build_url(self, payload: str) -> str:
         """
         Construct the full request URL with the payload injected.
-
-        ENCODING STRATEGY
-        -----------------
-        Our grammar already produces partially-encoded payloads — tokens
-        like %0b, %20, %27 are intentional obfuscation that must reach
-        the WAF exactly as written.
-
-        Problem with safe="":
-            urllib.parse.quote re-encodes % in %0b → %250b (double-encoded)
-            WAF receives "%250b" (garbled), blocks as malformed → wrong label
-
-        Fix — two-pass encoding:
-            Pass 1: urllib.parse.unquote()
-                    decode existing %-sequences back to raw characters
-                    e.g.  %0b → chr(11),  %27 → "'"
-                    HTML entities (&#39; &quot;) are plain ASCII — untouched ✓
-            Pass 2: urllib.parse.quote(safe="")
-                    re-encode cleanly from scratch — no doubles possible
-                    e.g.  chr(11) → %0B,  "'" → %27
         """
         # Pass 1: decode existing %-sequences back to raw bytes.
         #   MUST use encoding='latin-1' (iso-8859-1) not the default utf-8.

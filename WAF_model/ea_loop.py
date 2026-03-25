@@ -1,11 +1,7 @@
 """
 ea_loop.py
 ==========
-Component 4 of ML-Driven: the (µ+λ) Evolutionary Algorithm loop.
-
-Implements Algorithm 2 (main loop), Algorithm 3 (standard offspring
-generation for ML-Driven B and D), and Algorithm 4 (adaptive offspring
-generation for ML-Driven E) from the paper exactly.
+The (µ+λ) Evolutionary Algorithm loop.
 
 ─────────────────────────────────────────────────────────────────────────────
 FULL PIPELINE POSITION
@@ -39,8 +35,6 @@ FULL PIPELINE POSITION
   └──────────────────────────────────────────────────────────────────────┘
          │
   Archive of all bypassing attacks + path conditions
-         │
-  WAF repair (Component 5)
 
 ─────────────────────────────────────────────────────────────────────────────
 OFFSPRING GENERATION — HOW MUTATION WORKS
@@ -67,22 +61,6 @@ The path condition constrains which slices CAN be replaced:
     (it is a required bypass pattern — swapping it out may lose bypass)
   - A slice present with value=0 must stay absent
   - Slices NOT in the path condition are free to mutate
-
-─────────────────────────────────────────────────────────────────────────────
-THREE VARIANTS
-─────────────────────────────────────────────────────────────────────────────
-
-  ML-Driven D  (deep / exploitation)
-      MAXM = 100 → many mutants per parent, few parents selected
-      Good early when few high-probability attacks exist
-
-  ML-Driven B  (broad / exploration)
-      MAXM = 10  → few mutants per parent, many parents selected
-      Good later when many high-probability attacks exist
-
-  ML-Driven E  (enhanced / adaptive)  ← RECOMMENDED
-      Budget per parent ∝ bypass probability (Equation 1 from paper)
-      Automatically balances D and B behaviour over time
 
 ─────────────────────────────────────────────────────────────────────────────
 PUBLIC API
@@ -137,7 +115,7 @@ class EAConfig:
     """
     All tunable parameters for the EA loop in one place.
 
-    Paper parameter values (Section 4.4):
+    Parameter values:
         mu           = 500
         lam          = 4000
         archive_cap  = 6000 per class
@@ -150,8 +128,8 @@ class EAConfig:
         mu=50, lam=200, max_gen=5
     """
     # ── EA parameters ─────────────────────────────────────────────────────
-    mu:          int   = 50       # population size (paper: 500)
-    lam:         int   = 200      # offspring per generation (paper: 4000)
+    mu:          int   = 50       # population size
+    lam:         int   = 200      # offspring per generation 
     max_gen:     int   = 5        # number of generations to run
     variant:     str   = "E"      # "B" | "D" | "E"
     maxm_b:      int   = 10       # MAXM for ML-Driven B
@@ -159,8 +137,8 @@ class EAConfig:
     sigma:       float = 0.80     # bypass prob threshold for E variant
 
     # ── Archive parameters ─────────────────────────────────────────────────
-    archive_cap_bypass:  int = 6000   # max P entries in archive (paper: 6000)
-    archive_cap_blocked: int = 6000   # max B entries in archive (paper: 6000)
+    archive_cap_bypass:  int = 6000   # max P entries in archive 
+    archive_cap_blocked: int = 6000   # max B entries in archive 
 
     # ── Classifier parameters ──────────────────────────────────────────────
     classifier:  str  = "tree"    # "tree" | "forest"
@@ -191,10 +169,6 @@ class EAConfig:
 class Archive:
     """
     Keeps track of ALL attacks generated across all generations.
-
-    Paper Section 3.3.4:
-    "The archive is a second population used to keep track of all tests
-     being generated across the generations."
 
     Capped at archive_cap_bypass P entries and archive_cap_blocked B
     entries — if over cap, oldest entries are dropped (FIFO).
@@ -244,10 +218,7 @@ class MLDrivenEA:
     """
     The ML-Driven evolutionary algorithm.
 
-    Implements Algorithm 2 from the paper (Section 3.3.4) with all three
-    variants (B, D, E) and both classifiers (RandomTree, RandomForest).
-
-    GENERATION LOOP (Algorithm 2)
+    GENERATION LOOP 
     ──────────────────────────────
     Init:
       1. Generate init_size random attacks (RAN)
@@ -304,7 +275,7 @@ class MLDrivenEA:
         Encode the current archive into a binary matrix and train the
         classifier. Called at the start and end of each generation.
 
-        Paper Algorithm 2 lines 6-7 (init) and lines 14-15 (per generation):
+        Per generation:
             trainData ← transform(archive)
             DT        ← learnClassifier(trainData)
         """
@@ -336,8 +307,6 @@ class MLDrivenEA:
     def _rank_population(self) -> None:
         """
         Assign bypass probability to each individual in the population.
-
-        Paper Algorithm 2 line 8: rankTests(P, DT)
 
         Probability is assigned by encoding each attack's slices and
         running predict_proba() on the trained classifier.
@@ -434,7 +403,7 @@ class MLDrivenEA:
         """
         Elitist (µ+λ) selection: keep top µ from parents ∪ offspring.
 
-        Paper Algorithm 2 line 17: P ← SELECT(P ∪ O)
+        P ← SELECT(P ∪ O)
 
         Both lists must already have "prob" assigned.
         """
