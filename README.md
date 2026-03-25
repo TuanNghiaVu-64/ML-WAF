@@ -77,31 +77,33 @@ The target WAF is a Dockerized instance of DVWA behind ModSecurity running the O
 
 ```bash
 cd ModSec_demo
-docker compose up -d
+docker compose up -build
 ```
 The heavily protected target (ModSecurity + CRS) runs on `http://localhost:9003`.
 
 ### 2. Configure Session
 
-1. Log in to `http://localhost:9003` (`admin` / `password`).
+1. Log in to `http://localhost:9003` (`username=admin` / `password=password`).
 2. Go to **DVWA Security** and set it to **Low**.
 3. Copy your `PHPSESSID` cookie from your browser's Developer Tools.
+4. You can access `http://localhost:9001` to try the DVWA with no WAF (optional)
 
 ## Usage Commands
 
 ### Running the Evolutionary Algorithm
 
-Run the main EA loop (Variant E is enabled by default):
+Run the main EA loop:
 
 ```bash
 cd WAF_model
 python ea_loop.py <YOUR_PHPSESSID>
 ```
+The PHPSESSID is retrieved as a cookie in the browser after opening the DVWA app
 
 **Offline / Sandbox Testing:**
 If you want to test the ML loop locally without Docker, use the `mock` argument to run against a naive keyword blacklist:
 ```bash
-python ea_loop.py mock E forest
+python ea_loop.py mock
 ```
 
 ### Benchmarking against Random Gen
