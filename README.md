@@ -17,14 +17,17 @@ The architecture relies entirely on pure-Python implementations (no external ML 
 
 ## Dependencies
 
+### Machine Learning Core (`WAF_model/`)
 - `python >= 3.9`
 - `matplotlib` (Only required for running `benchmark.py` to generate the comparison graphs)
-- Docker & Docker Compose (For the ModSecurity target)
 
 Install Python dependencies:
 ```bash
 pip install matplotlib
 ```
+
+### WAF Target Environment (`ModSec_demo/`)
+- **Docker** and **Docker Compose** are strictly required to run the vulnerable DVWA target and the ModSecurity Web Application Firewall.
 
 ## Setup Guide
 
