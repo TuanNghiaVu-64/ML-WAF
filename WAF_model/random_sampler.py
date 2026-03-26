@@ -1,7 +1,7 @@
 """
 random_sampler.py
 =================
-Implements the RAN (random attack generation) baseline from the paper.
+Implements the RAN (random attack generation).
 Imports the grammar from grammar_definition.py — contains NO grammar data.
 
 PUBLIC API
@@ -19,7 +19,7 @@ PUBLIC API
             chosen_alternative : list — the alternative that was selected
         This trace is consumed by the slice extractor in the next step.
 
-ALGORITHM (paper Section 3.2)
+ALGORITHM
 ------------------------------
 1. Start at <start>
 2. For each non-terminal encountered, collect all its alternatives and

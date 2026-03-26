@@ -1,10 +1,10 @@
 """
 slice_extractor.py
 ==================
-Component 2 of ML-Driven: turns a derivation trace into slices,
+Turns a derivation trace into slices,
 then encodes a collection of labelled attacks into a binary feature matrix.
 
-WHAT IS A SLICE? (paper Definition 1 & 2)
+WHAT IS A SLICE? 
 ------------------------------------------
 Given the derivation tree of an attack, a SLICE is any subtree that
 covers a STRICT SUBSET of the attack's leaves (terminal symbols).
@@ -19,7 +19,7 @@ Each such expansion node has:
 A subtree is a valid slice if and only if its leaves are a STRICT subset
 of the full attack's leaves — i.e. it does not cover the whole attack.
 
-A MINIMAL SLICE (Definition 2) has exactly one leaf — it maps directly
+A MINIMAL SLICE has exactly one leaf — it maps directly
 to one terminal token (e.g. rule "opOr" → "or").
 
 We extract ALL slices (not just minimal), because combinations of slices
@@ -39,7 +39,7 @@ PIPELINE
     SliceRegistry.encode_corpus()    binary matrix  (n_attacks × n_slices)
         │
         ▼
-    ready for ML classifier          (Component 3)
+    ready for ML classifier       
 
 DATA STRUCTURES
 ---------------
@@ -212,7 +212,7 @@ def extract_slices(root: DerivationNode) -> set[Slice]:
     Extract all valid slices from a derivation tree.
 
     A slice is valid when its leaves are a STRICT SUBSET of root.leaves
-    (paper Definition 1).  We collect slices from every node in the tree
+    .  We collect slices from every node in the tree
     by a depth-first traversal.
 
     Parameters
@@ -292,7 +292,7 @@ class SliceRegistry:
         """
         Encode a list of labelled attacks into a binary feature matrix.
 
-        Algorithm (paper Section 3.3.2 — Training Set Preparation)
+        Algorithm
         -----------------------------------------------------------
         For each attack:
           1. Build its derivation tree

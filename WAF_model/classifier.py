@@ -1,10 +1,7 @@
 """
 classifier.py
 =============
-Component 3 of ML-Driven: RandomTree and RandomForest classifiers.
-
-Implements the paper's Section 3.3.3 exactly — no external ML libraries,
-pure Python from scratch so every line maps directly to the paper.
+RandomTree and RandomForest classifiers.
 
 WHAT THIS COMPONENT DOES
 -------------------------
@@ -21,7 +18,7 @@ These two outputs drive the evolutionary algorithm:
   - path_condition → which slices to preserve/avoid during mutation
 
 ─────────────────────────────────────────────────────────────────────────────
-RANDOMTREE  (paper Section 3.3.3)
+RANDOMTREE
 ─────────────────────────────────────────────────────────────────────────────
 
 A decision tree where at each node we pick the best split from a RANDOM
@@ -45,13 +42,13 @@ Node types:
   Internal node : feature_index, threshold, left_child, right_child
   Leaf node     : class_label ("P" or "B"), confidence (fraction of class)
 
-Path condition (Definition 3 from paper):
+Path condition:
   The sequence of (feature, value) tests from root to a LEAF labelled "P".
   It is a conjunction:  slice_j=1 ∧ slice_k=0 ∧ ...
   Each path condition describes one pattern that predicts bypass.
 
 ─────────────────────────────────────────────────────────────────────────────
-RANDOMFOREST  (paper Section 3.3.3)
+RANDOMFOREST
 ─────────────────────────────────────────────────────────────────────────────
 
 An ensemble of n_trees RandomTree instances, each trained on a bootstrap
@@ -64,13 +61,13 @@ Classification:
 Path condition:
   Computed separately from each tree that predicts "P".
   Overall path condition = CONJUNCTION of all individual path conditions.
-  (paper: "the overall path condition for the entire RandomForest is the
-   conjunction of the path conditions computed from the trees")
+  The overall path condition for the entire RandomForest is the
+  conjunction of the path conditions computed from the trees
 
 Why ensemble?
   Individual trees are unstable — small data changes flip predictions.
   Averaging many trees cancels out individual biases.
-  Cost: ~n_trees × training time. Paper shows the accuracy gain is worth
+  Cost: ~n_trees × training time.The accuracy gain is worth
   it for path condition discovery but NOT for raw bypass count (the
   overhead reduces the number of EA generations possible in a time budget).
 
@@ -205,9 +202,8 @@ class RandomTree:
     """
     A single decision tree with randomised feature selection at each node.
 
-    Paper reference: Section 3.3.3
-    "When selecting an attribute for a tree node, the algorithm chooses
-     the best attribute amongst a randomly selected subset of attributes."
+    When selecting an attribute for a tree node, the algorithm chooses
+    the best attribute amongst a randomly selected subset of attributes.
 
     Parameters
     ----------
@@ -416,7 +412,6 @@ class RandomTree:
         The path condition is the sequence of (slice_key, value) decisions
         made from the root to the leaf reached by this row.
 
-        Paper Definition 3:
         "A path condition represents a set of slices that the machine
          learning technique deems to be relevant for the attack's
          classification into blocked or bypassing."
@@ -488,7 +483,7 @@ class RandomTree:
         """
         Extract ALL path conditions in the tree that lead to a "P" leaf.
 
-        Used by RQ4 in the paper: counting how many distinct attack patterns
+        Counting how many distinct attack patterns
         have been discovered. Each path condition = one pattern.
 
         Returns
@@ -523,10 +518,6 @@ class RandomForest:
     """
     Ensemble of RandomTree instances, each trained on a bootstrap sample.
 
-    Paper reference: Section 3.3.3
-    "Instead of using only one RandomTree, we extend our technique to make
-     use of ensembles of trees produced by RandomForest."
-
     Bootstrap sampling:
         Each tree is trained on n_samples rows drawn WITH replacement from
         the original training set. On average each bootstrap sample contains
@@ -537,7 +528,7 @@ class RandomForest:
     Parameters
     ----------
     n_trees          : int    number of trees in the ensemble (default 10)
-                              paper uses Weka default; more trees = more
+                              More trees = more
                               path conditions but slower retraining
     max_features     : int|None  passed to each RandomTree (default sqrt)
     max_depth        : int|None  passed to each RandomTree
@@ -634,9 +625,6 @@ class RandomForest:
         """
         Average bypass probability across all trees.
 
-        Paper: "all individual classifications are consolidated by computing
-        the average of the prediction confidence values for each class."
-
         Parameters
         ----------
         row : list[int]   feature vector
@@ -654,9 +642,6 @@ class RandomForest:
         """
         Compute the CONJUNCTION of path conditions from all trees that
         predict "P" (bypass) for this row.
-
-        Paper: "the overall path condition for the entire RandomForest is
-        the conjunction of the path conditions computed from the trees."
 
         Algorithm:
           1. For each tree, walk root→leaf and record path if leaf = "P"
@@ -691,7 +676,6 @@ class RandomForest:
                 condition_votes.setdefault(key, set()).add(val)
 
         # Keep only conditions where ALL trees agree on the value
-        # (paper: conjunction = only conditions present in ALL trees)
         conjunction = [
             (key, next(iter(vals)))
             for key, vals in condition_votes.items()
@@ -710,10 +694,6 @@ class RandomForest:
         """
         Extract ALL path conditions from ALL trees in the forest that
         lead to "P" leaves.
-
-        Used for RQ4: how many attack patterns have been discovered?
-        More trees → more path conditions (paper Fig 15 shows ~200 for
-        RandomForest vs ~50 for RandomTree after 10 generations).
 
         Returns
         -------

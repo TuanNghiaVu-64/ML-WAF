@@ -1,7 +1,7 @@
 """
 mutation.py
 ===========
-Component 7: Adaptive Offspring Generation and Mutation.
+Adaptive Offspring Generation and Mutation.
 
 This module implements the mutation engine for the ML-WAF project. 
 It follows Algorithm 4 (Adaptive) where the mutation budget per parent
@@ -101,7 +101,7 @@ def adaptive_offspring_gen(population: List[Dict[str, Any]],
                             sigma: float = 0.8) -> List[Dict[str, Any]]:
     """
     Generate lambda_val offspring from the current population using 
-    adaptive mutation (Algorithm 4 from the paper).
+    adaptive mutation.
     
     Inputs:
     - population: List of payload dicts with 'derivation' and 'probability'
